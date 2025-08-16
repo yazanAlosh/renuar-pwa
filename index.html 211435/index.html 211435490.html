@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>חיפוש פריט רנואר</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#007bff" />
+
+  <style>
+    :root{
+      --blue:#007bff; --blue-dark:#0056b3;
+      --text:#222; --muted:#666;
+      --card:#ffffff; --bg:#f7f7f8;
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'Noto Sans';
+      background:var(--bg); color:var(--text); line-height:1.5;
+    }
+    header{background:linear-gradient(90deg,var(--blue),var(--blue-dark)); padding:16px 20px 22px; text-align:center; position:sticky; top:0; z-index:10; box-shadow:0 2px 10px rgba(0,0,0,.18)}
+    header img.logo{width:180px; max-width:60%; height:auto; display:block; margin:0 auto 8px; user-select:none}
+    header h1{margin:0; color:#fff; font-size:clamp(18px,2.6vw,28px); font-weight:700}
+    .container{max-width:980px; margin:18px auto; padding:16px}
+    .card{background:var(--card); border-radius:var(--radius); box-shadow:0 8px 24px rgba(0,0,0,.08); padding:clamp(16px,3vw,32px); text-align:center}
+    .lead{margin:0 0 14px; color:var(--muted); font-size:clamp(14px,2.2vw,16px); text-align:center}
+    form{display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; margin-top:10px}
+    .field{display:flex; gap:10px; align-items:stretch; width:100%}
+    input[type="text"]{width:100%; padding:14px; border:1px solid #dcdcdc; border-radius:10px; font-size:16px; outline:none; box-shadow:inset 0 2px 4px rgba(0,0,0,.03)}
+    input[type="text"]:focus{border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,123,255,.12), inset 0 2px 4px rgba(0,0,0,.03)}
+    button{background:var(--blue); color:#fff; padding:14px 22px; border:0; border-radius:10px; font-size:16px; font-weight:600; cursor:pointer; transition:transform .05s ease, background .2s ease; box-shadow:0 6px 16px rgba(0,123,255,.35); touch-action:manipulation}
+    button:active{transform:translateY(1px)} button:hover{background:var(--blue-dark)}
+    .link-btn{background:#fff; color:var(--blue); border:1px solid #dcdcdc; box-shadow:none}
+    .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; justify-content:center}
+    .viewer{margin-top:16px}
+    iframe{width:100%; height:clamp(420px,70vh,760px); border:1px solid #e6e6e6; border-radius:12px; background:#fff; box-shadow:0 8px 24px rgba(0,0,0,.06)}
+    .hint{font-size:13px; color:var(--muted); margin-top:6px; text-align:center}
+    @media (max-width:720px){form{grid-template-columns:1fr} .field{flex-direction:column} button,.link-btn{width:100%} header img.logo{width:150px} .container{padding:12px}}
+    /* Scanner modal */
+    .modal{position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; padding:16px; z-index:100}
+    .modal .box{background:#000; border-radius:12px; width:min(680px,100%); padding:10px; position:relative; color:#fff}
+    .modal header{position:static; background:transparent; box-shadow:none; padding:0 10px 6px; text-align:left}
+    .modal .close{position:absolute; top:10px; inset-inline-end:10px; background:#fff; color:#000; border:0; border-radius:8px; padding:8px 12px}
+    video{width:100%; height:auto; border-radius:10px; background:#000}
+    .scan-hint{font-size:14px; color:#ddd; margin:6px 2px 0}
+  </style>
+</head>
+<body>
+  <header>
+    <img src="https://upload.wikimedia.org/wikipedia/commons/6/69/Renuar_logo.png" alt="Renuar Logo" class="logo" aria-hidden="true" />
+    <h1>🔎 חיפוש פריט רנואר</h1>
+  </header>
+
+  <main class="container">
+    <section class="card" aria-labelledby="title">
+      <p id="title" class="lead">הקלד, הדבק או סרוק מק״ט כדי לחפש פריט באתר רנואר</p>
+
+      <form id="searchForm" novalidate>
+        <div class="field">
+          <input id="barcode" name="barcode" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="הכנס מק״ט" aria-label="הכנס מק״ט" autocomplete="off" />
+          <button type="submit" aria-label="חפש פריט">חפש פריט</button>
+        </div>
+        <div class="actions">
+          <button type="button" class="link-btn" id="openNewTab" aria-label="פתח בחלון חדש" title="פתח בחלון חדש">פתח בחלון חדש</button>
+          <button type="button" class="link-btn" id="clearBtn" aria-label="נקה">נקה</button>
+          <button type="button" id="scanBtn" aria-label="סרוק עם מצלמה">סרוק עם מצלמה</button>
+        </div>
+      </form>
+
+      <p class="hint">הערה: סריקת מצלמה تتطلب HTTPS أو localhost. على iPhone/iPad شغّل من رابط HTTPS.</p>
+
+      <div class="viewer">
+        <iframe id="resultFrame" title="תוצאות חיפוש רנואר" style="display:none;"></iframe>
+      </div>
+    </section>
+  </main>
+
+  <!-- Scanner Modal -->
+  <div class="modal" id="scanModal" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+    <div class="box">
+      <header><h3 id="scanTitle">סריקת מק״ט</h3></header>
+      <button class="close" id="closeScan">סגור</button>
+      <video id="preview" playsinline></video>
+      <div class="scan-hint">כוון את הברקוד למסגרת. عند الالتقاط سيتم تعبئة المک״ט تلقائيًا.</div>
+    </div>
+  </div>
+
+  <script>
+    // تسجيل الـ Service Worker لتفعيل PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(console.error);
+      });
+    }
+
+    const form = document.getElementById('searchForm');
+    const input = document.getElementById('barcode');
+    const frame = document.getElementById('resultFrame');
+    const openBtn = document.getElementById('openNewTab');
+    const clearBtn = document.getElementById('clearBtn');
+    const scanBtn = document.getElementById('scanBtn');
+
+    const scanModal = document.getElementById('scanModal');
+    const closeScan = document.getElementById('closeScan');
+    const video = document.getElementById('preview');
+
+    let stream, detector, scanTimer;
+
+    function buildUrl(code){
+      const c = (code || '').trim();
+      if(!c) return '';
+      const safe = c.replace(/[^\dA-Za-z]/g,'');
+      return https://www.renuar.co.il/catalogsearch/result/?q=${encodeURIComponent(safe)};
+    }
+
+    function performSearch(code){
+      const url = buildUrl(code);
+      if(!url){ alert('נא להכניס מק״ט'); input.focus(); return; }
+      frame.src = url;
+      frame.style.display = 'block';
+      openBtn.onclick = () => window.open(url, '_blank');
+      openBtn.disabled = false;
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      performSearch(input.value);
+    });
+
+    input.addEventListener('keydown', e => {
+      if(e.key === 'Enter'){ e.preventDefault(); performSearch(input.value); }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      input.value=''; frame.removeAttribute('src'); frame.style.display='none';
+      openBtn.disabled = true; input.focus();
+    });
+    openBtn.disabled = true;
+
+    // الكاميرا + BarcodeDetector
+    async function openScanner(){
+      try {
+        scanModal.style.display = 'flex';
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        await video.play();
+
+        if ('BarcodeDetector' in window) {
+          const formats = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','qr_code'];
+          detector = new BarcodeDetector({ formats });
+          scanTimer = setInterval(async () => {
+            try {
+              const codes = await detector.detect(video);
+              if (codes && codes.length) {
+                const value = codes[0].rawValue || codes[0].displayValue;
+                if (value) {
+                  input.value = value;
+                  closeScanner();
+                  performSearch(value);
+                }
+              }
+            } catch(e){ /* تجاهل الخطأ والاستمرار */ }
+          }, 200);
+        } else {
+          document.querySelector('.scan-hint').textContent = 'المتصفح لا يدعم قراءة الباركود مباشرة. أدخل المک״ט يدويًا.';
+        }
+      } catch (err) {
+        alert('لا يمكن الوصول للكاميرا. تأكد من الإذن وأن الصفحة عبر HTTPS أو على localhost.');
+        closeScanner(true);
+      }
+    }
+
+    function closeScanner(skipStop){
+      scanModal.style.display = 'none';
+      if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+      if (!skipStop && stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+    }
+
+    scanBtn.addEventListener('click', openScanner);
+    closeScan.addEventListener('click', () => closeScanner(false));
+    scanModal.addEventListener('click', e => { if (e.target === scanModal) closeScanner(false); });
+  </script>
+</body>
+</html>
